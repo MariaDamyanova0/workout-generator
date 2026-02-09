@@ -1,0 +1,132 @@
+* { box-sizing: border-box; }
+
+body{
+  margin:0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: #0b0b10;
+  color: #f1f1f4;
+  display:flex;
+  justify-content:center;
+  padding: 40px 16px;
+}
+
+.app{
+  width: 100%;
+  max-width: 980px;
+  display: grid;
+  gap: 14px;
+}
+
+.hero{
+  padding: 18px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  background: rgba(18,18,24,0.92);
+}
+
+.hero h1{ margin: 0 0 6px; font-size: 30px; }
+.hero p{ margin:0; color: rgba(241,241,244,0.75); }
+
+.card{
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  background: rgba(18,18,24,0.92);
+  padding: 16px;
+}
+
+.card h2{ margin: 0 0 12px; font-size: 18px; }
+
+.controls{
+  display: grid;
+  grid-template-columns: 1.2fr 0.7fr 1fr auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.field label{
+  display:block;
+  font-size: 13px;
+  color: rgba(241,241,244,0.8);
+  margin-bottom: 6px;
+}
+
+.field select{
+  width: 100%;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: #0f0f14;
+  color: #f1f1f4;
+}
+
+.field input[type="checkbox"]{
+  transform: translateY(1px);
+  margin-right: 8px;
+}
+
+.actions{
+  display:flex;
+  gap: 10px;
+}
+
+.primary{
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: none;
+  color: #0b0b10;
+  background: #f1f1f4;
+  cursor:pointer;
+}
+
+.ghost{
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: transparent;
+  color: #f1f1f4;
+  cursor:pointer;
+}
+
+.status{
+  margin: 10px 0 0;
+  min-height: 18px;
+  color: rgba(241,241,244,0.7);
+}
+
+.card-head{
+  display:flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.meta{
+  font-size: 12px;
+  color: rgba(241,241,244,0.65);
+}
+
+.empty{
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px dashed rgba(255,255,255,0.12);
+  color: rgba(241,241,244,0.65);
+}
+
+.list{
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.item{
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  padding: 12px;
+  background: #0f0f14;
+}
+
+.item strong{ display:block; margin-bottom: 6px; }
+.item .small{ color: rgba(241,241,244,0.7); font-size: 13px; }
