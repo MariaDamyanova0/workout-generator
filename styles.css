@@ -197,3 +197,22 @@ body{
   gap: 8px;
 }
 
+.item-head{
+  display:flex;
+  justify-content: space-between;
+  align-items:center;
+  gap: 10px;
+}
+
+.swapbtn{
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: transparent;
+  color: rgba(241,241,244,0.9);
+  cursor:pointer;
+}
+.swapbtn:hover{
+  border-color: rgba(241,241,244,0.35);
+}
+

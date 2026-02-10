@@ -28,11 +28,16 @@ const downloadBtn = $("#downloadBtn");
 const waBtn = $("#waBtn");
 const shareBtn = $("#shareBtn");
 
+const workoutSection = $("#workoutSection");
+
+
 
 // ---------- state ----------
 let muscles = [];
 let cachedExercisesEN = null; 
-let lastWorkout = [];         
+let lastWorkout = [];  
+let currentPool = [];
+
 
 init();
 renderSaved();
@@ -94,6 +99,7 @@ generateBtn.addEventListener("click", async () => {
              return !low.includes("none") && !low.includes("bodyweight");
           });
 
+
         return {
           id: ex.id,
           name: text.name,
@@ -102,12 +108,15 @@ generateBtn.addEventListener("click", async () => {
           isBodyweight: eqNames.length === 0,
         };
       })
+      
       .filter((ex) => ex.name && ex.description && looksEnglish(ex.name + " " + ex.description));
 
     if (bwOnly) {
       pool = pool.filter((ex) => ex.isBodyweight);
     }
 
+    currentPool = pool;
+    
     if (!pool.length) {
       setStatus(
         bwOnly
@@ -122,6 +131,7 @@ generateBtn.addEventListener("click", async () => {
 
     lastWorkout = picked;         
     renderWorkout(picked);
+    workoutSection?.scrollIntoView({ behavior: "smooth", block: "start" });
 
     const muscleName = getMuscleName(muscleId);
     metaEl.textContent = `${picked.length} exercises • ${muscleName}${bwOnly ? " • bodyweight" : ""}`;
@@ -234,7 +244,7 @@ waBtn.addEventListener("click", () => {
   const muscleName = muscleSelect.value ? getMuscleName(muscleSelect.value) : "";
   const text = workoutToText(lastWorkout, `Workout • ${muscleName}`);
 
-  // WhatsApp has a URL text limit; keep it reasonable
+
   const short = text.slice(0, 1500);
 
   const link = `https://wa.me/?text=${encodeURIComponent(short)}`;
@@ -263,8 +273,37 @@ shareBtn.addEventListener("click", async () => {
     });
     setStatus("Shared ✅");
   } catch {
-    // user cancelled share sheet -> ignore
+
   }
+});
+
+workoutList.addEventListener("click", (event) => {
+  const btn = event.target.closest("button[data-swap]");
+  if (!btn) return;
+
+  const currentId = String(btn.dataset.swap);
+
+  if (!currentPool || currentPool.length === 0) {
+    setStatus("Generate a workout first.");
+    return;
+  }
+
+  const usedIds = new Set(lastWorkout.map((x) => String(x.id)));
+  const candidates = currentPool.filter((x) => !usedIds.has(String(x.id)));
+
+  if (!candidates.length) {
+    setStatus("No more unique exercises to swap in.");
+    return;
+  }
+
+  const replacement = candidates[Math.floor(Math.random() * candidates.length)];
+
+  lastWorkout = lastWorkout.map((x) =>
+    String(x.id) === currentId ? replacement : x
+  );
+
+  renderWorkout(lastWorkout);
+  setStatus("Swapped ✅");
 });
 
 
@@ -294,7 +333,10 @@ function renderWorkout(items) {
     const tags = buildTags(ex);
 
     li.innerHTML = `
-      <strong>${escapeHtml(ex.name)}</strong>
+      <div class="item-head">
+        <strong>${escapeHtml(ex.name)}</strong>
+        <button class="swapbtn" data-swap="${escapeHtml(String(ex.id))}">🔁</button>
+      </div>
 
       <div class="tags">
         ${tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join("")}
@@ -584,4 +626,25 @@ function workoutToText(items, title = "Workout") {
   });
 
   return lines.join("\n");
+}
+
+function normalizeExercise(ex) {
+  return {
+    id: ex.id,
+    name: ex.name,
+    description: ex.description || "",
+    muscles: ex.muscles || [],
+    muscles_secondary: ex.muscles_secondary || [],
+    equipment: ex.equipment || [],
+    equipmentNames: Array.isArray(ex.equipment)
+      ? ex.equipment
+          .map((e) => String(e?.name ?? e).trim())
+          .filter(Boolean)
+          .filter((n) => {
+            const low = n.toLowerCase();
+            return !low.includes("none") && !low.includes("bodyweight");
+          })
+      : [],
+    isBodyweight: !(Array.isArray(ex.equipment) && ex.equipment.length > 0),
+  };
 }
