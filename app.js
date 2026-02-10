@@ -74,7 +74,13 @@ generateBtn.addEventListener("click", async () => {
         const text = pickEnglishText(ex);
 
         const eqArr = Array.isArray(ex.equipment) ? ex.equipment : [];
-        const eqNames = eqArr.map((e) => String(e?.name ?? e)).filter(Boolean);
+        const eqNames = eqArr
+          .map((e) => String(e?.name ?? e).trim())
+          .filter(Boolean)
+          .filter((n) => {
+             const low = n.toLowerCase();
+             return !low.includes("none") && !low.includes("bodyweight");
+          });
 
         return {
           id: ex.id,
@@ -183,10 +189,21 @@ function renderWorkout(items) {
 
     const desc = stripHtml(ex.description).slice(0, 260);
 
+    const pres = buildPrescription(ex);
+    const tags = buildTags(ex);
+
     li.innerHTML = `
       <strong>${escapeHtml(ex.name)}</strong>
+
+      <div class="tags">
+        ${tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join("")}
+      </div>
+
       <div class="small">${escapeHtml(desc || "No description available.")}</div>
+      <div class="prescription">${escapeHtml(pres)}</div>
     `;
+
+
 
     workoutList.appendChild(li);
   });
@@ -274,6 +291,64 @@ async function fetchAll(url) {
   return results;
 }
 
+function getCategory(ex) {
+  const name = (ex.name || "").toLowerCase();
+
+  if (name.includes("rowing") || name.includes("run") || name.includes("bike") || name.includes("jump")) {
+    return "cardio";
+  }
+
+  if (name.includes("plank") || name.includes("hollow") || name.includes("crunch") || name.includes("leg raise") || name.includes("sit-up")) {
+    return "core";
+  }
+
+  return "strength";
+}
+
+function buildPrescription(ex) {
+  const cat = getCategory(ex);
+
+  if (cat === "cardio") {
+    const minutes = randPick(["6–8", "8–10", "10–12"]);
+    return `Suggestion: ${minutes} minutes steady pace`;
+  }
+
+  if (cat === "core") {
+    const seconds = randPick(["20–30", "30–45", "45–60"]);
+    return `Suggestion: 3 sets × ${seconds} sec`;
+  }
+
+  const reps = randPick(["6–8", "8–12", "10–15"]);
+  return `Suggestion: 3 sets × ${reps} reps`;
+}
+
+function buildTags(ex) {
+  const tags = [];
+
+  const hasEquipment =
+    Array.isArray(ex.equipmentNames) && ex.equipmentNames.length > 0;
+
+  if (!hasEquipment) tags.push("Bodyweight");
+  else tags.push("Equipment");
+
+  const cat = getCategory(ex);
+  if (cat === "core") tags.push("Core");
+  else if (cat === "cardio") tags.push("Cardio");
+  else tags.push("Strength");
+
+  if (hasEquipment) {
+    ex.equipmentNames.slice(0, 2).forEach((n) => tags.push(n));
+  }
+
+  return tags;
+}
+
+
+
+function randPick(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
 function escapeHtml(str) {
   return String(str)
     .replaceAll("&", "&amp;")
@@ -288,11 +363,11 @@ function escapeHtml(str) {
 function looksEnglish(text) {
   const t = (text || "").toLowerCase();
 
-  // quick “not English” giveaways
+
   const nonEnglishHints = ["respiración", "técnica", "consciente", "pierna", "ejercicio", "flexión", "schritt", "auf", "und", "mit", "para", "conectar", "mejorar"];
   if (nonEnglishHints.some(w => t.includes(w))) return false;
 
-  // If it contains a lot of non-ascii letters, likely not English
+
   const nonAscii = (text.match(/[^\x00-\x7F]/g) || []).length;
   if (nonAscii > 3) return false;
 
