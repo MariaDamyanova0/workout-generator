@@ -7,6 +7,7 @@ const onlyBodyweight = $("#onlyBodyweight");
 
 const generateBtn = $("#generateBtn");
 const clearBtn = $("#clearBtn");
+const copyBtn = $("#copyBtn");
 
 const statusEl = $("#status");
 const workoutList = $("#workoutList");
@@ -20,6 +21,7 @@ const LANG_EN = 2;
 // ---------- state ----------
 let muscles = [];
 let cachedExercisesEN = null; 
+let lastWorkout = [];         
 
 init();
 
@@ -51,15 +53,13 @@ generateBtn.addEventListener("click", async () => {
   workoutList.innerHTML = "";
   emptyEl.style.display = "none";
   metaEl.textContent = "";
+  lastWorkout = [];
   setStatus("Generating workout...");
 
   try {
     if (!cachedExercisesEN) {
       setStatus("Loading exercise library (first time)...");
-
-      cachedExercisesEN = await fetchAll(
-        `${API}/exerciseinfo/?language=${LANG_EN}`
-      );
+      cachedExercisesEN = await fetchAll(`${API}/exerciseinfo/?language=${LANG_EN}`);
     }
 
     let pool = cachedExercisesEN.filter((ex) => {
@@ -72,23 +72,29 @@ generateBtn.addEventListener("click", async () => {
     pool = pool
       .map((ex) => {
         const text = pickEnglishText(ex);
+
+        const eqArr = Array.isArray(ex.equipment) ? ex.equipment : [];
+        const eqNames = eqArr.map((e) => String(e?.name ?? e)).filter(Boolean);
+
         return {
           id: ex.id,
           name: text.name,
           description: text.description,
-          equipment: Array.isArray(ex.equipment) ? ex.equipment : [],
+          equipmentNames: eqNames,
+          isBodyweight: eqNames.length === 0,
         };
       })
-      .filter((ex) => ex.name && ex.description);
+      .filter((ex) => ex.name && ex.description && looksEnglish(ex.name + " " + ex.description));
 
     if (bwOnly) {
-      pool = pool.filter((ex) => ex.equipment.length === 0);
+      pool = pool.filter((ex) => ex.isBodyweight);
     }
 
     if (!pool.length) {
-      setStatus(bwOnly
-        ? "No bodyweight exercises found for this muscle. Turn off 'Bodyweight only' and try again."
-        : "No exercises found for this selection."
+      setStatus(
+        bwOnly
+          ? "No bodyweight exercises found for this muscle. Turn off 'Bodyweight only' and try again."
+          : "No exercises found for this selection."
       );
       emptyEl.style.display = "block";
       return;
@@ -96,6 +102,7 @@ generateBtn.addEventListener("click", async () => {
 
     const picked = shuffle(pool).slice(0, Math.min(n, pool.length));
 
+    lastWorkout = picked;         
     renderWorkout(picked);
 
     const muscleName = getMuscleName(muscleId);
@@ -113,7 +120,45 @@ clearBtn.addEventListener("click", () => {
   workoutList.innerHTML = "";
   emptyEl.style.display = "block";
   metaEl.textContent = "";
+  lastWorkout = [];
   setStatus("");
+});
+
+copyBtn.addEventListener("click", async () => {
+  if (!lastWorkout || lastWorkout.length === 0) {
+    setStatus("Generate a workout first.");
+    return;
+  }
+
+  const text =
+    "Workout:\n" +
+    lastWorkout.map((x, i) => `${i + 1}. ${x.name}`).join("\n");
+
+  try {
+    await navigator.clipboard.writeText(text);
+    setStatus("Copied to clipboard ✅");
+    return;
+  } catch (err) {
+    console.warn("Clipboard API failed, using fallback:", err);
+  }
+
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.setAttribute("readonly", "");
+  ta.style.position = "fixed";
+  ta.style.top = "-1000px";
+  document.body.appendChild(ta);
+  ta.select();
+
+  try {
+    document.execCommand("copy");
+    setStatus("Copied to clipboard ✅");
+  } catch (err) {
+    console.error("Fallback copy failed:", err);
+    setStatus("Copy failed (browser blocked it).");
+  } finally {
+    document.body.removeChild(ta);
+  }
 });
 
 // ---------- rendering ----------
@@ -149,12 +194,12 @@ function renderWorkout(items) {
 
 // ---------- text selection ----------
 function pickEnglishText(ex) {
-
+  
   if (Array.isArray(ex.translations) && ex.translations.length) {
-    const t = ex.translations.find((x) => String(x.language) === String(LANG_EN)) || ex.translations[0];
+    const t = ex.translations.find((x) => String(x.language) === String(LANG_EN));
     return {
-      name: t?.name || ex.name || "",
-      description: t?.description || ex.description || "",
+      name: t?.name || "",
+      description: t?.description || "",
     };
   }
 
@@ -163,6 +208,7 @@ function pickEnglishText(ex) {
     description: ex.description || "",
   };
 }
+
 
 // ---------- helpers ----------
 function setStatus(msg) {
@@ -184,9 +230,13 @@ function friendlyMuscleName(name) {
   if (n.includes("deltoid") || n.includes("shoulder")) return "Shoulders";
   if (n.includes("biceps") || n.includes("triceps") || n.includes("forearm")) return "Arms";
   if (n.includes("quadriceps") || n.includes("hamstring") || n.includes("glute") || n.includes("calf")) return "Legs";
-
-  // fallback
+  
   return name;
+}
+
+function normalizeMuscleIds(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr.map((m) => String(m?.id ?? m)).filter(Boolean);
 }
 
 function clampInt(val, min, max) {
@@ -231,9 +281,20 @@ function escapeHtml(str) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+
+
 }
 
-function normalizeMuscleIds(arr){
-  if (!Array.isArray(arr)) return [];
-  return arr.map((m) => String(m?.id ?? m)).filter(Boolean);
+function looksEnglish(text) {
+  const t = (text || "").toLowerCase();
+
+  // quick “not English” giveaways
+  const nonEnglishHints = ["respiración", "técnica", "consciente", "pierna", "ejercicio", "flexión", "schritt", "auf", "und", "mit", "para", "conectar", "mejorar"];
+  if (nonEnglishHints.some(w => t.includes(w))) return false;
+
+  // If it contains a lot of non-ascii letters, likely not English
+  const nonAscii = (text.match(/[^\x00-\x7F]/g) || []).length;
+  if (nonAscii > 3) return false;
+
+  return true;
 }
