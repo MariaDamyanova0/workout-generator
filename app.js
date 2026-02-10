@@ -1,5 +1,11 @@
 const $ = (sel) => document.querySelector(sel);
 
+// ---------- API ----------
+const API = "https://wger.de/api/v2";
+const LANG_EN = 2;
+
+const LS_KEY = "workout_generator_saved_v1";
+
 // ---------- DOM ----------
 const muscleSelect = $("#muscleSelect");
 const workoutSizeEl = $("#workoutSize");
@@ -14,9 +20,14 @@ const workoutList = $("#workoutList");
 const emptyEl = $("#empty");
 const metaEl = $("#meta");
 
-// ---------- API ----------
-const API = "https://wger.de/api/v2";
-const LANG_EN = 2;
+const saveBtn = $("#saveBtn");
+const savedList = $("#savedList");
+const savedEmpty = $("#savedEmpty");
+
+const downloadBtn = $("#downloadBtn");
+const waBtn = $("#waBtn");
+const shareBtn = $("#shareBtn");
+
 
 // ---------- state ----------
 let muscles = [];
@@ -24,6 +35,7 @@ let cachedExercisesEN = null;
 let lastWorkout = [];         
 
 init();
+renderSaved();
 
 // ---------- init ----------
 async function init() {
@@ -166,6 +178,95 @@ copyBtn.addEventListener("click", async () => {
     document.body.removeChild(ta);
   }
 });
+
+saveBtn.addEventListener("click", () => {
+  if (!lastWorkout || lastWorkout.length === 0) {
+    setStatus("Generate a workout first.");
+    return;
+  }
+
+  const saved = loadSaved();
+  const muscleName = getMuscleName(muscleSelect.value);
+  const n = clampInt(Number(workoutSizeEl.value), 1, 12);
+  const bw = onlyBodyweight.checked ? "BW" : "Any";
+
+  saved.unshift({
+    id: cryptoId(),
+    title: `${muscleName} • ${n} • ${bw}`,
+    createdAt: new Date().toISOString(),
+    items: lastWorkout
+  });
+
+  saveSaved(saved);
+  renderSaved();
+  setStatus("Workout saved ✅");
+});
+
+downloadBtn.addEventListener("click", () => {
+  if (!lastWorkout || lastWorkout.length === 0) {
+    setStatus("Generate a workout first.");
+    return;
+  }
+
+  const muscleName = muscleSelect.value ? getMuscleName(muscleSelect.value) : "";
+  const text = workoutToText(lastWorkout, `Workout • ${muscleName}`);
+
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `workout-${muscleName || "session"}.txt`.toLowerCase().replace(/\s+/g, "-");
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  URL.revokeObjectURL(url);
+  setStatus("Downloaded ✅");
+});
+
+waBtn.addEventListener("click", () => {
+  if (!lastWorkout || lastWorkout.length === 0) {
+    setStatus("Generate a workout first.");
+    return;
+  }
+
+  const muscleName = muscleSelect.value ? getMuscleName(muscleSelect.value) : "";
+  const text = workoutToText(lastWorkout, `Workout • ${muscleName}`);
+
+  // WhatsApp has a URL text limit; keep it reasonable
+  const short = text.slice(0, 1500);
+
+  const link = `https://wa.me/?text=${encodeURIComponent(short)}`;
+  window.open(link, "_blank");
+});
+
+shareBtn.addEventListener("click", async () => {
+  if (!lastWorkout || lastWorkout.length === 0) {
+    setStatus("Generate a workout first.");
+    return;
+  }
+
+  const muscleName = muscleSelect.value ? getMuscleName(muscleSelect.value) : "";
+  const text = workoutToText(lastWorkout, `Workout • ${muscleName}`);
+  const short = text.slice(0, 2000);
+
+  if (!navigator.share) {
+    setStatus("Share not supported on this device (try WhatsApp or Download).");
+    return;
+  }
+
+  try {
+    await navigator.share({
+      title: "Workout Generator",
+      text: short
+    });
+    setStatus("Shared ✅");
+  } catch {
+    // user cancelled share sheet -> ignore
+  }
+});
+
 
 // ---------- rendering ----------
 function renderMuscleOptions(items) {
@@ -372,4 +473,115 @@ function looksEnglish(text) {
   if (nonAscii > 3) return false;
 
   return true;
+}
+
+function loadSaved() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveSaved(arr) {
+  localStorage.setItem(LS_KEY, JSON.stringify(arr));
+}
+
+function cryptoId() {
+  return Math.random().toString(16).slice(2) + Date.now().toString(16);
+}
+
+function renderSaved() {
+  if (!savedList || !savedEmpty) return;
+
+  const saved = loadSaved();
+  savedList.innerHTML = "";
+
+  if (!saved.length) {
+    savedEmpty.style.display = "block";
+    return;
+  }
+  savedEmpty.style.display = "block";
+  savedEmpty.style.display = "none";
+
+  saved.forEach((w) => {
+    const li = document.createElement("li");
+    li.className = "item";
+
+    li.innerHTML = `
+      <div class="saved-card">
+        <div>
+          <div class="saved-title">${escapeHtml(w.title)}</div>
+          <div class="small">${escapeHtml(new Date(w.createdAt).toLocaleString())}</div>
+        </div>
+
+        <div class="saved-actions">
+          <button class="ghost smallbtn" data-action="load" data-id="${w.id}">Load</button>
+          <button class="ghost smallbtn" data-action="copy" data-id="${w.id}">Copy</button>
+          <button class="ghost smallbtn" data-action="delete" data-id="${w.id}">Delete</button>
+        </div>
+      </div>
+    `;
+
+    savedList.appendChild(li);
+  });
+
+  savedList.querySelectorAll("button[data-action]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const action = btn.dataset.action;
+      const id = btn.dataset.id;
+
+      const saved = loadSaved();
+      const found = saved.find((x) => x.id === id);
+      if (!found) return;
+
+      if (action === "load") {
+        lastWorkout = found.items || [];
+        renderWorkout(lastWorkout);
+        emptyEl.style.display = lastWorkout.length ? "none" : "block";
+        metaEl.textContent = `${lastWorkout.length} exercises • (saved)`;
+        setStatus("Loaded saved workout ✅");
+      }
+
+      if (action === "copy") {
+        const text =
+          "Workout:\n" +
+          (found.items || []).map((x, i) => `${i + 1}. ${x.name}`).join("\n");
+
+        try {
+          await navigator.clipboard.writeText(text);
+          setStatus("Copied saved workout ✅");
+        } catch {
+          setStatus("Clipboard blocked by browser.");
+        }
+      }
+
+      if (action === "delete") {
+        const ok = confirm("Delete this saved workout?");
+        if (!ok) return;
+        const next = saved.filter((x) => x.id !== id);
+        saveSaved(next);
+        renderSaved();
+        setStatus("Deleted ✅");
+      }
+    });
+  });
+}
+
+function workoutToText(items, title = "Workout") {
+  const lines = [];
+  lines.push(title);
+  lines.push("");
+
+  items.forEach((x, i) => {
+    const tags = buildTags(x).join(", ");
+    const pres = buildPrescription(x);
+    lines.push(`${i + 1}. ${x.name}`);
+    lines.push(`   Tags: ${tags}`);
+    lines.push(`   ${pres}`);
+    lines.push("");
+  });
+
+  return lines.join("\n");
 }

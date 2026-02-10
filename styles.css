@@ -174,3 +174,26 @@ body{
   color: rgba(241,241,244,0.85);
 }
 
+.subhead{
+  margin: 16px 0 10px;
+  font-size: 14px;
+  color: rgba(241,241,244,0.8);
+}
+
+.saved-card{
+  display:flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.saved-title{
+  font-size: 14px;
+  color: rgba(241,241,244,0.9);
+}
+
+.saved-actions{
+  display:flex;
+  gap: 8px;
+}
+
