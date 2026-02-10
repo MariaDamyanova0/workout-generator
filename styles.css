@@ -130,3 +130,12 @@ body{
 
 .item strong{ display:block; margin-bottom: 6px; }
 .item .small{ color: rgba(241,241,244,0.7); font-size: 13px; }
+
+#workoutSize{
+  width: 100%;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: #0f0f14;
+  color: #f1f1f4;
+}
